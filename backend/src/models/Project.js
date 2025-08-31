@@ -81,7 +81,7 @@ const projectSchema = new mongoose.Schema({
 // Generate unique deployment URL
 projectSchema.methods.generateDeployUrl = function() {
   const subdomain = this.customDomain;
-  return `https://${subdomain}.gulamgaush.in`;
+  return `https://${subdomain}.${process.env.BASE_DOMAIN}`;
 };
 
 const Project = mongoose.model('Project', projectSchema);

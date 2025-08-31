@@ -135,7 +135,7 @@ class DeploymentService {
     try {
       await s3Service.uploadStaticSite(distPath, s3Path);
       this.emitLog(projectId, 'success', 'Static files deployed successfully');
-      const deployUrl = `https://${project.customDomain}.gulamgaush.in`;
+      const deployUrl = `https://${project.customDomain}.${process.env.BASE_DOMAIN}:${process.env.REV_PROXY_PORT}`;
       return { deployUrl, s3Path };
     } catch (error) {
       throw new Error(`Static deployment failed: ${error.message}`);
@@ -147,8 +147,7 @@ class DeploymentService {
 
     try {
       const containerId = await dockerService.buildAndDeploy(projectPath, projectId);
-      const deployUrl = `https://${projectId}.deployflow.app`;
-      
+      const deployUrl = `https://${projectId}.${process.env.BASE_DOMAIN}:${process.env.REV_PROXY_PORT}`;
       this.emitLog(projectId, 'success', 'Container deployed successfully');
       return deployUrl;
     } catch (error) {

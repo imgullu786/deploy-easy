@@ -1,0 +1,32 @@
+{
+  "name": "deployment-platform-backend",
+  "version": "1.0.0",
+  "description": "Backend for mini deployment platform",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.879.0",
+    "aws-sdk": "^2.1500.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dockerode": "^4.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mime-types": "^3.0.1",
+    "mongoose": "^8.0.3",
+    "simple-git": "^3.20.0",
+    "socket.io": "^4.7.4",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

@@ -46,10 +46,12 @@ class DeploymentService {
       // Build project
       await this.buildProject(projectPath, project._id);
 
-      let deployUrl;
+      let deployUrl, s3Path;
       if (buildType === 'static') {
         // Deploy static files to S3
-        deployUrl = await this.deployStatic(projectPath, project._id, project);
+        const result = await this.deployStatic(projectPath, project._id, project);
+        deployUrl = result.deployUrl;
+        s3Path = result.s3Path;
       } else {
         // Deploy as Docker container
         deployUrl = await this.deployServer(projectPath, project._id);
@@ -59,6 +61,7 @@ class DeploymentService {
       await this.updateProjectDeployment(project._id, {
         status: 'running',
         deployUrl,
+        s3Path,
         buildType,
         completedAt: new Date(),
       });
@@ -130,9 +133,10 @@ class DeploymentService {
     const s3Path = `projects/${project.name}`;
 
     try {
-      const deployUrl = await s3Service.uploadStaticSite(distPath, s3Path);
+      await s3Service.uploadStaticSite(distPath, s3Path);
       this.emitLog(projectId, 'success', 'Static files deployed successfully');
-      return deployUrl;
+      const deployUrl = `https://${project.customDomain}.gulamgaush.in`;
+      return { deployUrl, s3Path };
     } catch (error) {
       throw new Error(`Static deployment failed: ${error.message}`);
     }
@@ -159,6 +163,7 @@ class DeploymentService {
 
   async updateProjectDeployment(projectId, deploymentData) {
     await Project.findByIdAndUpdate(projectId, {
+      s3Path: deploymentData.s3Path,
       status: deploymentData.status,
       deployUrl: deploymentData.deployUrl,
       buildType: deploymentData.buildType,

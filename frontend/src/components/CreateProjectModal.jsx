@@ -74,7 +74,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
           
           <div>
             <label htmlFor="customDomain" className="block text-sm font-semibold text-gray-700 mb-1">
-              Custom Domain (optional)
+              Custom Domain *
             </label>
             <input
               type="text"

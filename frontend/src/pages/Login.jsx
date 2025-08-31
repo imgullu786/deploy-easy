@@ -40,7 +40,7 @@ const Login = () => {
           <div className="flex justify-center mb-4">
             <Rocket className="h-12 w-12 text-yellow-400 drop-shadow-md" />
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Welcome Back 🚀</h1>
+          <h1 className="text-3xl font-extrabold text-gray-900">Welcome Back</h1>
           <p className="text-gray-600 mt-2">Sign in to continue</p>
         </div>
 

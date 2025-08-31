@@ -29,7 +29,7 @@ class S3Service {
   async uploadStaticSite(distPath, s3Path) {
     try {
       await this.uploadDirectory(distPath, s3Path);
-      return `https://${this.bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Path}/`;
+      return `https://${this.bucketName}.gulamgaush.in`;
     } catch (error) {
       throw new Error(`S3 upload failed: ${error.message}`);
     }

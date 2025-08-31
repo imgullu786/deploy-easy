@@ -80,8 +80,8 @@ const projectSchema = new mongoose.Schema({
 
 // Generate unique deployment URL
 projectSchema.methods.generateDeployUrl = function() {
-  const subdomain = this.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-  return `https://${subdomain}-${this._id.toString().slice(-8)}.deployflow.app`;
+  const subdomain = this.customDomain;
+  return `https://${subdomain}.gulamgaush.in`;
 };
 
 const Project = mongoose.model('Project', projectSchema);

@@ -1,6 +1,4 @@
 import mime from "mime-types";
-import dotenv from "dotenv";
-dotenv.config();
 
 import {
   S3Client,

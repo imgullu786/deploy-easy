@@ -30,13 +30,13 @@ export const getProject = async (req, res) => {
 
 export const createProject = async (req, res) => {
   try {
-    const { name, description, githubRepo, customDomain } = req.body;
+    const { name, description, githubRepo, subDomain } = req.body;
 
     const project = new Project({
       name,
       description,
       githubRepo,
-      customDomain,
+      subDomain,
       owner: req.user._id,
     });
 
@@ -46,17 +46,18 @@ export const createProject = async (req, res) => {
     await project.save();
     res.status(201).json(project);
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 export const updateProject = async (req, res) => {
   try {
-    const { name, description, githubRepo, customDomain } = req.body;
+    const { name, description, githubRepo, subDomain } = req.body;
 
     const project = await Project.findOneAndUpdate(
       { _id: req.params.id, owner: req.user._id },
-      { name, description, githubRepo, customDomain },
+      { name, description, githubRepo, subDomain },
       { new: true, runValidators: true }
     );
 

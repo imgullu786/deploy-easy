@@ -67,6 +67,7 @@ class DeploymentService {
       });
 
       this.emitLog(project._id, 'success', `Deployment successful! Available at ${deployUrl}`);
+      await this.updateProjectStatus(project._id, 'running');
 
     } catch (error) {
       console.error('Deployment failed:', error);
@@ -135,7 +136,7 @@ class DeploymentService {
     try {
       await s3Service.uploadStaticSite(distPath, s3Path);
       this.emitLog(projectId, 'success', 'Static files deployed successfully');
-      const deployUrl = `https://${project.customDomain}.${process.env.BASE_DOMAIN}:${process.env.REV_PROXY_PORT}`;
+      const deployUrl = `https://${project.subDomain}.${process.env.BASE_DOMAIN}`;
       return { deployUrl, s3Path };
     } catch (error) {
       throw new Error(`Static deployment failed: ${error.message}`);

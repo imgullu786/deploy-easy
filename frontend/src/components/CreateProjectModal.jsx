@@ -5,18 +5,23 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     name: '',
     githubRepo: '',
-    customDomain: '',
+    subDomain: '',
     description: '',
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
-    setFormData({ name: '', githubRepo: '', customDomain: '', description: '' });
+    setFormData({
+      name: '',
+      githubRepo: '',
+      subDomain: '',
+      description: '',
+    });
   };
 
   const handleChange = (e) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
@@ -37,11 +42,15 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
             <X className="h-6 w-6" />
           </button>
         </div>
-        
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Project Name */}
           <div>
-            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-1">
+            <label
+              htmlFor="name"
+              className="block text-sm font-semibold text-gray-700 mb-1"
+            >
               Project Name *
             </label>
             <input
@@ -52,12 +61,18 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               onChange={handleChange}
               required
               placeholder="my-awesome-app"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder-gray-400"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 
+                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
+                         outline-none transition-all placeholder-gray-400"
             />
           </div>
-          
+
+          {/* GitHub Repo */}
           <div>
-            <label htmlFor="githubRepo" className="block text-sm font-semibold text-gray-700 mb-1">
+            <label
+              htmlFor="githubRepo"
+              className="block text-sm font-semibold text-gray-700 mb-1"
+            >
               GitHub Repository *
             </label>
             <input
@@ -68,27 +83,47 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               onChange={handleChange}
               required
               placeholder="https://github.com/username/repo"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder-gray-400"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 
+                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
+                         outline-none transition-all placeholder-gray-400"
             />
           </div>
-          
+
+          {/* Subdomain */}
           <div>
-            <label htmlFor="customDomain" className="block text-sm font-semibold text-gray-700 mb-1">
-              Custom Domain *
+            <label
+              htmlFor="subDomain"
+              className="block text-sm font-semibold text-gray-700 mb-1"
+            >
+              Subdomain *
             </label>
             <input
               type="text"
-              id="customDomain"
-              name="customDomain"
-              value={formData.customDomain}
+              id="subDomain"
+              name="subDomain"
+              value={formData.subDomain}
               onChange={handleChange}
-              placeholder="myapp.com"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder-gray-400"
+              required
+              placeholder="myapp"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 
+                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
+                         outline-none transition-all placeholder-gray-400"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Your project will be available at{" "}
+              <strong>
+                {formData.subDomain || "your-app"}.
+                {import.meta.env.VITE_BASE_DOMAIN || "example.com"}
+              </strong>
+            </p>
           </div>
-          
+
+          {/* Description */}
           <div>
-            <label htmlFor="description" className="block text-sm font-semibold text-gray-700 mb-1">
+            <label
+              htmlFor="description"
+              className="block text-sm font-semibold text-gray-700 mb-1"
+            >
               Description (optional)
             </label>
             <textarea
@@ -98,22 +133,27 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               onChange={handleChange}
               rows="3"
               placeholder="Brief description of your project"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder-gray-400 resize-none"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 
+                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
+                         outline-none transition-all placeholder-gray-400 resize-none"
             />
           </div>
-          
+
           {/* Buttons */}
           <div className="flex space-x-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
+              className="flex-1 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-medium 
+                         hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow-md hover:shadow-lg hover:scale-[1.02] transition-all"
+              className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 
+                         text-white font-semibold shadow-md hover:shadow-lg 
+                         hover:scale-[1.02] transition-all"
             >
               Create Project
             </button>

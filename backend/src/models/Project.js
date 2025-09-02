@@ -41,7 +41,6 @@ const projectSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
   },
   description: {
@@ -53,10 +52,11 @@ const projectSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
-  customDomain: {
-    type: String,
-    trim: true,
-  },
+  subDomain: {
+  type: String,
+  unique: true,
+  trim: true,
+},
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -80,7 +80,7 @@ const projectSchema = new mongoose.Schema({
 
 // Generate unique deployment URL
 projectSchema.methods.generateDeployUrl = function() {
-  const subdomain = this.customDomain;
+  const subdomain = this.subDomain;
   return `https://${subdomain}.${process.env.BASE_DOMAIN}`;
 };
 

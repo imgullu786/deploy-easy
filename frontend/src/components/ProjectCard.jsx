@@ -65,10 +65,10 @@ const ProjectCard = ({ project }) => {
             <span className="truncate">{project.githubRepo}</span>
           </div>
         )}
-        {project.customDomain && (
+        {project.subDomain && (
           <div className="flex items-center space-x-2 text-sm text-gray-700">
             <Globe className="h-4 w-4 text-gray-500" />
-            <span className="truncate">{project.customDomain}</span>
+            <span className="truncate">{project.subDomain}</span>
           </div>
         )}
       </div>

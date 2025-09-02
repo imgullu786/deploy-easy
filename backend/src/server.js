@@ -1,17 +1,18 @@
+import "./loadEnv.js"
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import dotenv from 'dotenv';
+
 import connectDB from './config/database.js';
 import authRoutes from './routes/authRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { setupSocketHandlers } from './services/socketService.js';
 
-dotenv.config();
+
 
 const app = express();
 const server = createServer(app);

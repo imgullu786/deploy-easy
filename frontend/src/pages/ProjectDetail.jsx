@@ -163,12 +163,12 @@ const ProjectDetail = () => {
                 </div>
               </div>
 
-              {project.customDomain && (
+              {project.subDomain && (
                 <div className="flex items-center space-x-3">
                   <Globe className="h-5 w-5 text-gray-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-700">Custom Domain</p>
-                    <p className="text-sm text-gray-600">{project.customDomain}</p>
+                    <p className="text-sm text-gray-600">{project.subDomain}</p>
                   </div>
                 </div>
               )}

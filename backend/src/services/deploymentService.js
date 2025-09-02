@@ -26,7 +26,7 @@ class DeploymentService {
   }
 
   async deploy(project) {
-    const deploymentId = project.name;
+    const deploymentId = project.subDomain;
     const projectPath = path.join(this.tempDir, deploymentId);
 
     try {
@@ -37,11 +37,9 @@ class DeploymentService {
       // Clone repository
       await this.cloneRepository(project.githubRepo, projectPath, project._id);
 
-      // Detect build type
-      const buildType = await this.detectBuildType(projectPath, project._id);
-      
-      // Update project with build type
-      await Project.findByIdAndUpdate(project._id, { buildType });
+      // Use the build type specified by the user
+      const buildType = project.buildType;
+      this.emitLog(project._id, 'info', `Building as ${buildType} application`);
 
       // Build project
       await this.buildProject(projectPath, project._id);
@@ -88,39 +86,21 @@ class DeploymentService {
     this.emitLog(projectId, 'success', 'Repository cloned successfully');
   }
 
-  async detectBuildType(projectPath, projectId) {
-    this.emitLog(projectId, 'info', 'Detecting project type...');
-
-    try {
-      const packageJsonPath = path.join(projectPath, 'package.json');
-      const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
-
-      // Check for static site indicators
-      const isStatic = packageJson.scripts?.build && 
-        (packageJson.dependencies?.react || 
-         packageJson.dependencies?.vue || 
-         packageJson.dependencies?.vite ||
-         packageJson.devDependencies?.vite);
-
-      const buildType = isStatic ? 'static' : 'server';
-      this.emitLog(projectId, 'success', `Detected ${buildType} application`);
-      
-      return buildType;
-    } catch (error) {
-      this.emitLog(projectId, 'warn', 'Could not detect project type, defaulting to server');
-      return 'server';
-    }
-  }
-
   async buildProject(projectPath, projectId) {
+    const project = await Project.findById(projectId);
+    const { rootDirectory, buildCommand } = project.buildConfig;
+    
+    const workingDir = path.join(projectPath, rootDirectory);
+    
+    this.emitLog(projectId, 'info', `Working in directory: ${rootDirectory}`);
     this.emitLog(projectId, 'info', 'Installing dependencies...');
     
     try {
-      await execAsync('npm install', { cwd: projectPath });
+      await execAsync('npm install', { cwd: workingDir });
       this.emitLog(projectId, 'success', 'Dependencies installed');
 
-      this.emitLog(projectId, 'info', 'Building project...');
-      await execAsync('npm run build', { cwd: projectPath });
+      this.emitLog(projectId, 'info', `Running build command: ${buildCommand}`);
+      await execAsync(buildCommand, { cwd: workingDir });
       this.emitLog(projectId, 'success', 'Project built successfully');
     } catch (error) {
       throw new Error(`Build failed: ${error.message}`);
@@ -130,8 +110,10 @@ class DeploymentService {
   async deployStatic(projectPath, projectId, project) {
     this.emitLog(projectId, 'info', 'Deploying static files to S3...');
 
-    const distPath = path.join(projectPath, 'dist');
-    const s3Path = `projects/${project.name}`;
+    const { rootDirectory, publishDirectory } = project.buildConfig;
+    const workingDir = path.join(projectPath, rootDirectory);
+    const distPath = path.join(workingDir, publishDirectory);
+    const s3Path = `projects/${project.subDomain}`;
 
     try {
       await s3Service.uploadStaticSite(distPath, s3Path);
@@ -148,7 +130,7 @@ class DeploymentService {
 
     try {
       const containerId = await dockerService.buildAndDeploy(projectPath, projectId);
-      const deployUrl = `https://${projectId}.${process.env.BASE_DOMAIN}:${process.env.REV_PROXY_PORT}`;
+      const deployUrl = `https://${projectId}.${process.env.BASE_DOMAIN}`;
       this.emitLog(projectId, 'success', 'Container deployed successfully');
       return deployUrl;
     } catch (error) {

@@ -14,6 +14,7 @@ const deploymentSchema = new mongoose.Schema({
     type: String,
     enum: ['static', 'server'],
     required: true,
+    required: true,
   },
   containerId: String,
   s3Path: String,
@@ -57,6 +58,23 @@ const projectSchema = new mongoose.Schema({
   unique: true,
   trim: true,
 },
+  buildConfig: {
+    rootDirectory: {
+      type: String,
+      default: '.',
+      trim: true,
+    },
+    buildCommand: {
+      type: String,
+      default: 'npm run build',
+      trim: true,
+    },
+    publishDirectory: {
+      type: String,
+      default: 'dist',
+      trim: true,
+    },
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -80,9 +98,14 @@ const projectSchema = new mongoose.Schema({
 
 // Generate unique deployment URL
 projectSchema.methods.generateDeployUrl = function() {
-  const subdomain = this.subDomain;
+  const subdomain = this.subDomain.toLowerCase().replace(/[^a-z0-9-]/g, '');
   return `https://${subdomain}.${process.env.BASE_DOMAIN}`;
 };
+
+projectSchema.pre('save', function(next) {
+  this.subDomain = this.subDomain.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  next();
+});
 
 const Project = mongoose.model('Project', projectSchema);
 

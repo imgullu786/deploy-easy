@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Settings, Globe, Github, Trash2 } from 'lucide-react';
+import { ArrowLeft, Play, Settings, Globe, Github, Trash2, Edit3 } from 'lucide-react';
 import { projectService } from '../services/projectService';
 import LogsPanel from '../components/LogsPanel';
 import { io } from 'socket.io-client';
@@ -14,11 +14,17 @@ const ProjectDetail = () => {
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState('');
   const [socket, setSocket] = useState(null);
+  const [editingConfig, setEditingConfig] = useState(false);
+  const [buildConfig, setBuildConfig] = useState({
+    rootDirectory: '.',
+    buildCommand: 'npm run build',
+    publishDirectory: 'dist',
+  });
 
   useEffect(() => {
     loadProject();
     loadLogs();
-    
+
     // WebSocket for real-time logs
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
@@ -28,11 +34,11 @@ const ProjectDetail = () => {
     });
 
     newSocket.on('deployment-log', (logData) => {
-      setLogs(prev => [...prev, logData]);
+      setLogs((prev) => [...prev, logData]);
     });
 
     newSocket.on('deployment-status', (statusData) => {
-      setProject(prev => prev ? { ...prev, status: statusData.status } : null);
+      setProject((prev) => (prev ? { ...prev, status: statusData.status } : null));
       if (statusData.status !== 'deploying') {
         setDeploying(false);
       }
@@ -47,6 +53,13 @@ const ProjectDetail = () => {
     try {
       const projectData = await projectService.getProject(id);
       setProject(projectData);
+      setBuildConfig(
+        projectData.buildConfig || {
+          rootDirectory: '.',
+          buildCommand: 'npm run build',
+          publishDirectory: 'dist',
+        }
+      );
     } catch (err) {
       setError('Failed to load project');
     } finally {
@@ -68,7 +81,7 @@ const ProjectDetail = () => {
     setError('');
     try {
       await projectService.deployProject(id);
-      setProject(prev => ({ ...prev, status: 'deploying' }));
+      setProject((prev) => ({ ...prev, status: 'deploying' }));
     } catch (err) {
       setError(err.message);
       setDeploying(false);
@@ -84,6 +97,27 @@ const ProjectDetail = () => {
         setError(err.message);
       }
     }
+  };
+
+  const handleSaveBuildConfig = async () => {
+    try {
+      const updatedProject = await projectService.updateProject(id, {
+        ...project,
+        buildConfig,
+      });
+      setProject(updatedProject);
+      setEditingConfig(false);
+      setError('');
+    } catch (err) {
+      setError('Failed to update build configuration');
+    }
+  };
+
+  const handleBuildConfigChange = (field, value) => {
+    setBuildConfig((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   if (loading) {
@@ -144,9 +178,32 @@ const ProjectDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Project Details */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <div className="bg-white/90 backdrop-blur-xl p-6 rounded-xl shadow-lg border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Project Details</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Project Details</h2>
+
+              {/* Small action buttons */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleDeploy}
+                  disabled={deploying || project.status === 'deploying'}
+                  className="px-3 py-1 rounded-md bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-s font-medium flex items-center space-x-1 shadow hover:shadow-md hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Play className="h-3 w-3" />
+                  <span>{deploying || project.status === 'deploying' ? 'Deploying...' : 'Deploy'}</span>
+                </button>
+
+                <button
+                  onClick={handleDelete}
+                  className="px-3 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white text-s font-medium flex items-center space-x-1 shadow-sm transition-colors"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-5">
               <div className="flex items-center space-x-3">
                 <Github className="h-5 w-5 text-gray-600" />
@@ -189,35 +246,98 @@ const ProjectDetail = () => {
                   </div>
                 </div>
               )}
+
+              {/* Build Configuration */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-gray-700">Build Configuration</h3>
+                  <button
+                    onClick={() => setEditingConfig(!editingConfig)}
+                    className="text-indigo-600 hover:text-purple-600 text-sm font-medium flex items-center space-x-1 transition-colors"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    <span>{editingConfig ? 'Cancel' : 'Edit'}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-1">Root Directory</p>
+                    {editingConfig ? (
+                      <input
+                        type="text"
+                        value={buildConfig.rootDirectory}
+                        onChange={(e) => handleBuildConfigChange('rootDirectory', e.target.value)}
+                        className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-800 font-mono bg-gray-50 px-2 py-1 rounded">
+                        {project.buildConfig?.rootDirectory || '.'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-1">Build Command</p>
+                    {editingConfig ? (
+                      <input
+                        type="text"
+                        value={buildConfig.buildCommand}
+                        onChange={(e) => handleBuildConfigChange('buildCommand', e.target.value)}
+                        className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-800 font-mono bg-gray-50 px-2 py-1 rounded">
+                        {project.buildConfig?.buildCommand || 'npm run build'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-1">Publish Directory</p>
+                    {editingConfig ? (
+                      <input
+                        type="text"
+                        value={buildConfig.publishDirectory}
+                        onChange={(e) => handleBuildConfigChange('publishDirectory', e.target.value)}
+                        className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-800 font-mono bg-gray-50 px-2 py-1 rounded">
+                        {project.buildConfig?.publishDirectory || 'dist'}
+                      </p>
+                    )}
+                  </div>
+
+                  {editingConfig && (
+                    <div className="flex space-x-2 pt-2">
+                      <button
+                        onClick={handleSaveBuildConfig}
+                        className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingConfig(false);
+                          setBuildConfig(
+                            project.buildConfig || {
+                              rootDirectory: '.',
+                              buildCommand: 'npm run build',
+                              publishDirectory: 'dist',
+                            }
+                          );
+                        }}
+                        className="px-3 py-1.5 text-sm rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-4">
-          <button
-            onClick={handleDeploy}
-            disabled={deploying || project.status === 'deploying'}
-            className="w-full py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold flex items-center justify-center space-x-2 shadow-md hover:shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Play className="h-5 w-5" />
-            <span>
-              {deploying || project.status === 'deploying' ? 'Deploying...' : 'Deploy'}
-            </span>
-          </button>
-
-          <button className="w-full py-2.5 rounded-lg bg-lime-400 text-gray-700 font-medium flex items-center justify-center space-x-2 hover:bg-yellow-200 transition-colors">
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
-          </button>
-
-          <button
-            onClick={handleDelete}
-            className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium flex items-center justify-center space-x-2 shadow-sm transition-colors"
-          >
-            <Trash2 className="h-5 w-5" />
-            <span>Delete Project</span>
-          </button>
         </div>
       </div>
 

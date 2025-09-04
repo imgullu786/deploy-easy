@@ -30,15 +30,13 @@ export const getProject = async (req, res) => {
 
 export const createProject = async (req, res) => {
   try {
-    const { name, description, githubRepo, subDomain, buildConfig, buildType } = req.body;
-    
-    if (subDomain) {
-      const existing = await Project.findOne({ subDomain });
-      if (existing) {
-        return res.status(400).json({ message: 'Subdomain already taken, please choose another one.' });
-      }
-    }
+    const { name, description, githubRepo, subDomain, buildConfig, buildType, envVars } = req.body;
 
+    // Check if subdomain is already taken
+    const existingProject = await Project.findOne({ subDomain });
+    if (existingProject) {
+      return res.status(400).json({ message: 'Subdomain is already taken' });
+    }
     const project = new Project({
       name,
       description,
@@ -46,6 +44,7 @@ export const createProject = async (req, res) => {
       subDomain,
       buildConfig: buildConfig || {},
       buildType,
+      envVars: envVars || new Map(),
       owner: req.user._id,
     });
 
@@ -55,18 +54,18 @@ export const createProject = async (req, res) => {
     await project.save();
     res.status(201).json(project);
   } catch (error) {
-    console.log(error)
+    console.error('Create project error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 export const updateProject = async (req, res) => {
   try {
-    const { name, description, githubRepo, subDomain, buildConfig, buildType } = req.body;
+    const { name, description, githubRepo, subDomain, buildConfig, buildType, envVars } = req.body;
 
     const project = await Project.findOneAndUpdate(
       { _id: req.params.id, owner: req.user._id },
-      { name, description, githubRepo, subDomain, buildConfig, buildType },
+      { name, description, githubRepo, subDomain, buildConfig, buildType, envVars },
       { new: true, runValidators: true }
     );
 

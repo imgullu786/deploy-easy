@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# EC2 Setup Script for DeployFlow
+# EC2 Setup Script for deploy-easy
 # Run this on a fresh Ubuntu 20.04+ EC2 instance
 
 set -e
 
-echo "🚀 Setting up DeployFlow on EC2..."
+echo "🚀 Setting up deploy-easy on EC2..."
 
 # Update system
 sudo apt-get update -y
@@ -34,15 +34,15 @@ sudo apt-get install -y nginx
 sudo apt-get install -y git
 
 # Create application directory
-sudo mkdir -p /opt/deployflow
-sudo chown ubuntu:ubuntu /opt/deployflow
+sudo mkdir -p /opt/deploy-easy
+sudo chown ubuntu:ubuntu /opt/deploy-easy
 
 # Create Docker network for deployments
-docker network create deployflow-network || true
+docker network create deploy-easy-network || true
 
 # Setup log directories
-sudo mkdir -p /var/log/deployflow
-sudo chown ubuntu:ubuntu /var/log/deployflow
+sudo mkdir -p /var/log/deploy-easy
+sudo chown ubuntu:ubuntu /var/log/deploy-easy
 
 # Configure firewall
 echo "🔒 Configuring firewall..."

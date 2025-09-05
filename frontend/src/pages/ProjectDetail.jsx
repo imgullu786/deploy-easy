@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Settings, Globe, Github, Trash2, Edit3, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Play,
+  Settings,
+  Globe,
+  Github,
+  Trash2,
+  Edit3,
+} from 'lucide-react';
 import { projectService } from '../services/projectService';
 import LogsPanel from '../components/LogsPanel';
 import { io } from 'socket.io-client';
@@ -14,7 +22,6 @@ const ProjectDetail = () => {
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState('');
   const [socket, setSocket] = useState(null);
-  const [showBuildConfig, setShowBuildConfig] = useState(false);
   const [editingConfig, setEditingConfig] = useState(false);
   const [buildConfig, setBuildConfig] = useState({
     rootDirectory: '.',
@@ -25,7 +32,7 @@ const ProjectDetail = () => {
   useEffect(() => {
     loadProject();
     loadLogs();
-    
+
     // WebSocket for real-time logs
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
@@ -35,11 +42,13 @@ const ProjectDetail = () => {
     });
 
     newSocket.on('deployment-log', (logData) => {
-      setLogs(prev => [...prev, logData]);
+      setLogs((prev) => [...prev, logData]);
     });
 
     newSocket.on('deployment-status', (statusData) => {
-      setProject(prev => prev ? { ...prev, status: statusData.status } : null);
+      setProject((prev) =>
+        prev ? { ...prev, status: statusData.status } : null
+      );
       if (statusData.status !== 'deploying') {
         setDeploying(false);
       }
@@ -54,11 +63,13 @@ const ProjectDetail = () => {
     try {
       const projectData = await projectService.getProject(id);
       setProject(projectData);
-      setBuildConfig(projectData.buildConfig || {
-        rootDirectory: '.',
-        buildCommand: 'npm run build',
-        publishDirectory: 'dist',
-      });
+      setBuildConfig(
+        projectData.buildConfig || {
+          rootDirectory: '.',
+          buildCommand: 'npm run build',
+          publishDirectory: 'dist',
+        }
+      );
     } catch (err) {
       setError('Failed to load project');
     } finally {
@@ -80,7 +91,7 @@ const ProjectDetail = () => {
     setError('');
     try {
       await projectService.deployProject(id);
-      setProject(prev => ({ ...prev, status: 'deploying' }));
+      setProject((prev) => ({ ...prev, status: 'deploying' }));
     } catch (err) {
       setError(err.message);
       setDeploying(false);
@@ -88,7 +99,11 @@ const ProjectDetail = () => {
   };
 
   const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+    if (
+      window.confirm(
+        'Are you sure you want to delete this project? This action cannot be undone.'
+      )
+    ) {
       try {
         await projectService.deleteProject(id);
         navigate('/dashboard');
@@ -113,11 +128,12 @@ const ProjectDetail = () => {
   };
 
   const handleBuildConfigChange = (field, value) => {
-    setBuildConfig(prev => ({
+    setBuildConfig((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -176,14 +192,44 @@ const ProjectDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Project Details */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <div className="bg-white/90 backdrop-blur-xl p-6 rounded-xl shadow-lg border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Project Details</h2>
+            {/* Top row: title + actions */}
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Project Details
+              </h2>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleDeploy}
+                  disabled={deploying || project.status === 'deploying'}
+                  className="px-3 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold flex items-center space-x-2 shadow-md hover:shadow-lg hover:scale-[1.02] transition-all"
+                >
+                  <Play className="h-4 w-4" />
+                  <span>
+                    {deploying || project.status === 'deploying'
+                      ? 'Deploying'
+                      : 'Deploy'}
+                  </span>
+                </button>
+
+                <button
+                  onClick={handleDelete}
+                  className="px-3 py-1 rounded-lg bg-gradient-to-r from-red-600 to-orange-600 text-white font-semibold flex items-center space-x-2 shadow-md hover:shadow-lg hover:scale-[1.02] transition-all"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-5">
               <div className="flex items-center space-x-3">
                 <Github className="h-5 w-5 text-gray-600" />
                 <div>
-                  <p className="text-sm font-medium text-gray-700">GitHub Repository</p>
+                  <p className="text-sm font-medium text-gray-700">
+                    GitHub Repository
+                  </p>
                   <a
                     href={project.githubRepo}
                     target="_blank"
@@ -200,7 +246,9 @@ const ProjectDetail = () => {
                   <Globe className="h-5 w-5 text-gray-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-700">Subdomain</p>
-                    <p className="text-sm text-gray-600">{project.subDomain}.gulamgaush.in</p>
+                    <p className="text-sm text-gray-600">
+                      {project.subDomain}.gulamgaush.in
+                    </p>
                   </div>
                 </div>
               )}
@@ -209,7 +257,9 @@ const ProjectDetail = () => {
                 <div className="flex items-center space-x-3">
                   <Globe className="h-5 w-5 text-gray-600" />
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Deployment URL</p>
+                    <p className="text-sm font-medium text-gray-700">
+                      Deployment URL
+                    </p>
                     <a
                       href={project.deployUrl}
                       target="_blank"
@@ -225,7 +275,9 @@ const ProjectDetail = () => {
               {/* Build Configuration */}
               <div className="border-t border-gray-200 pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-gray-700">Build Configuration</h3>
+                  <h3 className="text-sm font-medium text-gray-700">
+                    Build Configuration
+                  </h3>
                   <button
                     onClick={() => setEditingConfig(!editingConfig)}
                     className="text-indigo-600 hover:text-purple-600 text-sm font-medium flex items-center space-x-1 transition-colors"
@@ -234,15 +286,19 @@ const ProjectDetail = () => {
                     <span>{editingConfig ? 'Cancel' : 'Edit'}</span>
                   </button>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs font-medium text-gray-600 mb-1">Root Directory</p>
+                    <p className="text-xs font-medium text-gray-600 mb-1">
+                      Root Directory
+                    </p>
                     {editingConfig ? (
                       <input
                         type="text"
                         value={buildConfig.rootDirectory}
-                        onChange={(e) => handleBuildConfigChange('rootDirectory', e.target.value)}
+                        onChange={(e) =>
+                          handleBuildConfigChange('rootDirectory', e.target.value)
+                        }
                         className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                       />
                     ) : (
@@ -251,14 +307,18 @@ const ProjectDetail = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div>
-                    <p className="text-xs font-medium text-gray-600 mb-1">Build Command</p>
+                    <p className="text-xs font-medium text-gray-600 mb-1">
+                      Build Command
+                    </p>
                     {editingConfig ? (
                       <input
                         type="text"
                         value={buildConfig.buildCommand}
-                        onChange={(e) => handleBuildConfigChange('buildCommand', e.target.value)}
+                        onChange={(e) =>
+                          handleBuildConfigChange('buildCommand', e.target.value)
+                        }
                         className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                       />
                     ) : (
@@ -267,14 +327,21 @@ const ProjectDetail = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div>
-                    <p className="text-xs font-medium text-gray-600 mb-1">Publish Directory</p>
+                    <p className="text-xs font-medium text-gray-600 mb-1">
+                      Publish Directory
+                    </p>
                     {editingConfig ? (
                       <input
                         type="text"
                         value={buildConfig.publishDirectory}
-                        onChange={(e) => handleBuildConfigChange('publishDirectory', e.target.value)}
+                        onChange={(e) =>
+                          handleBuildConfigChange(
+                            'publishDirectory',
+                            e.target.value
+                          )
+                        }
                         className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                       />
                     ) : (
@@ -283,7 +350,7 @@ const ProjectDetail = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   {editingConfig && (
                     <div className="flex space-x-2 pt-2">
                       <button
@@ -295,11 +362,13 @@ const ProjectDetail = () => {
                       <button
                         onClick={() => {
                           setEditingConfig(false);
-                          setBuildConfig(project.buildConfig || {
-                            rootDirectory: '.',
-                            buildCommand: 'npm run build',
-                            publishDirectory: 'dist',
-                          });
+                          setBuildConfig(
+                            project.buildConfig || {
+                              rootDirectory: '.',
+                              buildCommand: 'npm run build',
+                              publishDirectory: 'dist',
+                            }
+                          );
                         }}
                         className="px-3 py-1.5 text-sm rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition-colors"
                       >
@@ -310,14 +379,19 @@ const ProjectDetail = () => {
                 </div>
               </div>
 
-              {/* Environment Variables (for server projects) */}
+              {/* Environment Variables */}
               {project.buildType === 'server' && (
                 <div className="border-t border-gray-200 pt-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Environment Variables</h3>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">
+                    Environment Variables
+                  </h3>
                   {project.envVars && Object.keys(project.envVars).length > 0 ? (
                     <div className="space-y-2">
                       {Object.entries(project.envVars).map(([key, value]) => (
-                        <div key={key} className="flex items-center space-x-2 text-sm">
+                        <div
+                          key={key}
+                          className="flex items-center space-x-2 text-sm"
+                        >
                           <span className="font-mono text-gray-800 bg-gray-100 px-2 py-1 rounded min-w-0 flex-shrink-0">
                             {key}
                           </span>
@@ -329,44 +403,22 @@ const ProjectDetail = () => {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 italic">No environment variables configured</p>
+                    <p className="text-sm text-gray-500 italic">
+                      No environment variables configured
+                    </p>
                   )}
                 </div>
               )}
             </div>
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="space-y-4">
-          <button
-            onClick={handleDeploy}
-            disabled={deploying || project.status === 'deploying'}
-            className="w-full py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold flex items-center justify-center space-x-2 shadow-md hover:shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Play className="h-5 w-5" />
-            <span>
-              {deploying || project.status === 'deploying' ? 'Deploying...' : 'Deploy'}
-            </span>
-          </button>
-
-          <button className="w-full py-2.5 rounded-lg bg-lime-400 text-gray-700 font-medium flex items-center justify-center space-x-2 hover:bg-yellow-200 transition-colors">
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
-          </button>
-
-          <button
-            onClick={handleDelete}
-            className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium flex items-center justify-center space-x-2 shadow-sm transition-colors"
-          >
-            <Trash2 className="h-5 w-5" />
-            <span>Delete Project</span>
-          </button>
-        </div>
       </div>
 
       {/* Logs */}
-      <LogsPanel logs={logs} isLoading={deploying || project.status === 'deploying'} />
+      <LogsPanel
+        logs={logs}
+        isLoading={deploying || project.status === 'deploying'}
+      />
     </div>
   );
 };

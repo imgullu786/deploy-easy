@@ -74,6 +74,7 @@ class S3Service {
 
   // Delete files from S3
   async deleteFiles(s3Path) {
+    console.log("Deleting S3 files at path:", s3Path);
     try {
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucketName,

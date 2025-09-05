@@ -4,266 +4,276 @@ import path from 'path';
 
 class DockerService {
   constructor() {
-    this.docker = new Docker();
-    this.portCounter = 3001; // Start from 3001 to avoid conflicts
+    this.docker = new Docker(); // uses /var/run/docker.sock by default
+    this.portCounter = 3001;    // starting host port
   }
 
+  /**
+   * Build image (creating Dockerfile if missing), stop old container, run new.
+   */
   async buildAndDeploy(projectPath, projectId, envVars = {}) {
     try {
-      // Create Dockerfile if it doesn't exist
-      await this.ensureDockerfile(projectPath);
-
-      // Build Docker image
+      await this.ensureDockerfile(projectPath, projectId);
       const imageName = `project-${projectId}:latest`;
-      await this.buildImage(projectPath, imageName, projectId);
 
-      // Stop existing container if it exists
+      await this.buildImage(projectPath, imageName, projectId);
       await this.stopExistingContainer(projectId);
 
-      // Run container with environment variables
-      const containerInfo = await this.runContainer(imageName, projectId, envVars);
-
-      return containerInfo;
+      const runInfo = await this.runContainer({ imageName, projectId, envVars });
+      return runInfo;
     } catch (error) {
+      this.emitBuildLog(projectId, 'error', `Docker deployment failed: ${error.message}`);
       throw new Error(`Docker deployment failed: ${error.message}`);
     }
   }
 
-  async ensureDockerfile(projectPath) {
+  /**
+   * Ensure a Dockerfile exists. Create a secure, minimal Node Dockerfile if missing.
+   */
+  async ensureDockerfile(projectPath, projectId) {
     const dockerfilePath = path.join(projectPath, 'Dockerfile');
-    
+
     try {
       await fs.access(dockerfilePath);
-      this.emitBuildLog('info', 'Using existing Dockerfile');
+      this.emitBuildLog(projectId, 'info', 'Using existing Dockerfile');
+      return;
     } catch {
-      // Create default Dockerfile for Node.js apps
-      this.emitBuildLog('info', 'Creating default Dockerfile for Node.js application');
-      
-      const dockerfile = `FROM node:18-alpine
+      /* fallthrough and create one */
+    }
 
+    this.emitBuildLog(projectId, 'info', 'Creating default Dockerfile for Node.js application');
+
+    // node:18-alpine doesn’t include curl by default — needed for HEALTHCHECK.
+    const dockerfile = `# ---- Base ----
+FROM node:18-alpine AS base
 WORKDIR /app
 
-# Copy package files
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+# Copy package manifests first for better docker cache usage
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --production
+# ---- Prod deps ----
+RUN npm ci --only=production
 
-# Copy application code
+# ---- App source ----
 COPY . .
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
-
-# Change ownership
+# Non-root user for security
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 
-# Expose port
+# Default port (match your app's PORT usage)
+ENV PORT=3000
+
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
-  CMD curl -f http://localhost:3000/health || exit 1
+CMD ["npm", "start"]
+`;
 
-# Start the application
-CMD ["npm", "start"]`;
-
-      await fs.writeFile(dockerfilePath, dockerfile);
-      this.emitBuildLog('success', 'Dockerfile created');
-    }
+    await fs.writeFile(dockerfilePath, dockerfile);
+    this.emitBuildLog(projectId, 'success', 'Dockerfile created');
   }
 
+  /**
+   * Build image and stream logs.
+   */
   async buildImage(projectPath, imageName, projectId) {
-    this.emitBuildLog('info', `Building Docker image: ${imageName}`);
-    
+    this.emitBuildLog(projectId, 'info', `Building Docker image: ${imageName}`);
+
     return new Promise((resolve, reject) => {
-      const buildOptions = {
-        t: imageName,
-      };
+      const buildOptions = { t: imageName };
+      this.docker.buildImage(
+        { context: projectPath, src: ['.'] },
+        buildOptions,
+        (err, stream) => {
+          if (err) return reject(err);
 
-      this.docker.buildImage({
-        context: projectPath,
-        src: ['.'],
-      }, buildOptions, (err, stream) => {
-        if (err) return reject(err);
-
-        let buildOutput = '';
-        
-        stream.on('data', (chunk) => {
-          const data = chunk.toString();
-          buildOutput += data;
-          
-          // Parse Docker build output and emit logs
-          try {
-            const lines = data.split('\n').filter(line => line.trim());
-            lines.forEach(line => {
-              if (line.trim()) {
-                try {
-                  const parsed = JSON.parse(line);
-                  if (parsed.stream) {
-                    this.emitBuildLog('info', parsed.stream.trim());
-                  }
-                } catch {
-                  // Not JSON, emit as is if it's meaningful
-                  if (line.includes('Step') || line.includes('Successfully')) {
-                    this.emitBuildLog('info', line.trim());
-                  }
+          stream.on('data', (chunk) => {
+            const text = chunk.toString();
+            // Docker emits line-delimited JSON during build; parse where possible
+            text.split('\n').forEach((line) => {
+              const trimmed = line.trim();
+              if (!trimmed) return;
+              try {
+                const parsed = JSON.parse(trimmed);
+                if (parsed.stream) this.emitBuildLog(projectId, 'info', parsed.stream.trim());
+                if (parsed.error) this.emitBuildLog(projectId, 'error', parsed.error.trim());
+              } catch {
+                // Non-JSON line; show meaningful snippets
+                if (trimmed.includes('Step') || trimmed.includes('Successfully')) {
+                  this.emitBuildLog(projectId, 'info', trimmed);
                 }
               }
             });
-          } catch (parseError) {
-            console.error('Error parsing build output:', parseError);
-          }
-        });
+          });
 
-        stream.on('end', () => {
-          this.emitBuildLog('success', 'Docker image built successfully');
-          resolve(buildOutput);
-        });
-        
-        stream.on('error', (error) => {
-          this.emitBuildLog('error', `Build failed: ${error.message}`);
-          reject(error);
-        });
-      });
+          stream.on('end', () => {
+            this.emitBuildLog(projectId, 'success', 'Docker image built successfully');
+            resolve();
+          });
+
+          stream.on('error', (error) => {
+            this.emitBuildLog(projectId, 'error', `Build failed: ${error.message}`);
+            reject(error);
+          });
+        }
+      );
     });
   }
 
+  /**
+   * Stop & remove an existing container for this project.
+   */
   async stopExistingContainer(projectId) {
     try {
+      const name = `project-${projectId}`;
       const containers = await this.docker.listContainers({ all: true });
-      const existingContainer = containers.find(container => 
-        container.Names.some(name => name.includes(`project-${projectId}`))
-      );
+      const existing = containers.find((c) => c.Names?.some((n) => n.includes(name)));
 
-      if (existingContainer) {
-        this.emitBuildLog('info', 'Stopping existing container...');
-        const container = this.docker.getContainer(existingContainer.Id);
-        
-        if (existingContainer.State === 'running') {
+      if (existing) {
+        this.emitBuildLog(projectId, 'info', 'Stopping existing container…');
+        const container = this.docker.getContainer(existing.Id);
+        // If running, stop with a 10s timeout
+        if (existing.State === 'running') {
           await container.stop({ t: 10 });
         }
-        await container.remove();
-        this.emitBuildLog('success', 'Existing container stopped and removed');
+        await container.remove({ force: true });
+        this.emitBuildLog(projectId, 'success', 'Existing container stopped and removed');
       }
     } catch (error) {
-      console.error('Error stopping existing container:', error);
+      this.emitBuildLog(projectId, 'error', `Error stopping existing container: ${error.message}`);
+      // Don’t throw; best-effort cleanup
     }
   }
 
-  async runContainer(imageName, projectId, envVars = {}) {
-    // Get next available port
+  /**
+   * Create & start container on the next available host port.
+   */
+  async runContainer({ imageName, projectId, envVars = {} }) {
+    // Assign a host port (what Nginx will proxy to)
     const hostPort = await this.getNextAvailablePort();
-    
-    this.emitBuildLog('info', `Starting container on port ${hostPort}`);
-    
-    // Prepare environment variables
-    const envArray = Object.entries(envVars).map(([key, value]) => `${key}=${value}`);
-    
-    // Add default PORT environment variable
-    envArray.push(`PORT=3000`);
 
-    if (Object.keys(envVars).length > 0) {
-      this.emitBuildLog('info', `Environment variables: ${Object.keys(envVars).join(', ')}`);
-    }
+    this.emitBuildLog(projectId, 'info', `Starting container on host port ${hostPort}`);
+
+    // Prepare env array: app env + enforced PORT=3000 inside container
+    const Env = [
+      ...Object.entries(envVars).map(([k, v]) => `${k}=${v}`),
+      'PORT=3000',
+      // Helpful in-app metadata
+      `PROJECT_ID=${projectId}`,
+    ];
+
+    const Labels = {
+      'deployflow.project.id': String(projectId),
+      'deployflow.port': String(hostPort),
+      'deployflow.managed': 'true',
+    };
 
     const containerConfig = {
       Image: imageName,
       name: `project-${projectId}`,
-      Env: envArray,
+      Env,
       ExposedPorts: { '3000/tcp': {} },
       HostConfig: {
-        PortBindings: {
-          '3000/tcp': [{ HostPort: hostPort.toString() }]
-        },
-        RestartPolicy: {
-          Name: 'unless-stopped',
-        },
-        Memory: 512 * 1024 * 1024, // 512MB limit
-        CpuShares: 512, // CPU limit
+        PortBindings: { '3000/tcp': [{ HostPort: String(hostPort) }] },
+        RestartPolicy: { Name: 'unless-stopped' },
+        // Conservative resource limits; tweak per your box
+        Memory: 512 * 1024 * 1024, // 512MB
+        CpuShares: 512,
       },
-      Labels: {
-        'deployflow.project.id': projectId,
-        'deployflow.port': hostPort.toString(),
-      },
+      Labels,
     };
 
     const container = await this.docker.createContainer(containerConfig);
     await container.start();
 
-    this.emitBuildLog('info', 'Container started, waiting for health check...');
-
-    // Wait for container to be ready
-    await this.waitForContainer(container, projectId);
+    this.emitBuildLog(projectId, 'info', 'Container started, waiting for readiness…');
+    await this.waitForReadiness(container, projectId);
 
     return {
       containerId: container.id,
       port: hostPort,
-      deployUrl: `http://localhost:${hostPort}`, // In production, this would be your domain
+      // For local debug; your deploymentService builds the public URL
+      deployUrl: `http://localhost:${hostPort}`,
     };
   }
 
-  async waitForContainer(container, projectId, maxWait = 30000) {
-    const startTime = Date.now();
-    
-    while (Date.now() - startTime < maxWait) {
+  /**
+   * Wait for the container to be running and (best-effort) healthy.
+   * If HEALTHCHECK exists, Docker populates State.Health.
+   */
+  async waitForReadiness(container, projectId, maxWaitMs = 60_000) {
+    const start = Date.now();
+
+    while (Date.now() - start < maxWaitMs) {
       try {
-        const containerInfo = await container.inspect();
-        
-        if (!containerInfo.State.Running) {
-          // Get container logs to see what went wrong
-          const logs = await container.logs({
-            stdout: true,
-            stderr: true,
-            tail: 20,
-          });
-          throw new Error(`Container failed to start. Logs: ${logs.toString()}`);
+        const info = await container.inspect();
+
+        if (!info.State.Running) {
+          const logs = await container.logs({ stdout: true, stderr: true, tail: 50 });
+          throw new Error(`Container exited early.\nLogs:\n${logs.toString()}`);
         }
 
-        // Container is running, give it a moment to start the app
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        this.emitBuildLog('success', 'Container is running and ready');
-        return;
-        
-      } catch (error) {
-        if (error.message.includes('Container failed to start')) {
-          throw error;
+        // If health exists, prefer it
+        if (info.State.Health && info.State.Health.Status) {
+          const status = info.State.Health.Status; // starting | healthy | unhealthy
+          this.emitBuildLog(projectId, 'info', `Health: ${status}`);
+          if (status === 'healthy') return;
+          if (status === 'unhealthy') {
+            const logs = await container.logs({ stdout: true, stderr: true, tail: 80 });
+            throw new Error(`Healthcheck failed.\nLogs:\n${logs.toString()}`);
+          }
+        } else {
+          // No healthcheck: small grace period then assume up
+          await this.sleep(2000);
+          return;
         }
-        // Wait and retry
-        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        await this.sleep(2000);
+      } catch (err) {
+        if (/exited early|Healthcheck failed/i.test(err.message)) throw err;
+        await this.sleep(1000);
       }
     }
-    
-    throw new Error('Container health check timeout');
+    throw new Error('Container readiness timeout');
   }
 
   async getNextAvailablePort() {
     try {
-      const containers = await this.docker.listContainers();
-      const usedPorts = containers
-        .filter(container => container.Labels && container.Labels['deployflow.port'])
-        .map(container => parseInt(container.Labels['deployflow.port']));
-      
-      while (usedPorts.includes(this.portCounter)) {
-        this.portCounter++;
-      }
-      
+      const containers = await this.docker.listContainers({ all: true });
+      const used = new Set(
+        containers
+          .map((c) => c.Labels?.['deployflow.port'])
+          .filter(Boolean)
+          .map((p) => parseInt(p, 10))
+      );
+
+      // Also consider host bindings that might not have our label (other containers)
+      containers.forEach((c) => {
+        (c.Ports || []).forEach((p) => {
+          if (p.PublicPort) used.add(p.PublicPort);
+        });
+      });
+
+      while (used.has(this.portCounter)) this.portCounter++;
       return this.portCounter++;
     } catch (error) {
-      console.error('Error checking ports:', error);
-      return this.portCounter++;
+      // Best effort fallback
+      this.portCounter++;
+      return this.portCounter - 1;
     }
   }
 
   async stopContainer(containerId) {
     try {
       const container = this.docker.getContainer(containerId);
-      await container.stop({ t: 10 }); // 10 second timeout
-      await container.remove();
+      await container.stop({ t: 10 });
+      await container.remove({ force: true });
     } catch (error) {
-      console.error('Failed to stop container:', error);
+      this.emitBuildLog(null, 'error', `Failed to stop container ${containerId}: ${error.message}`);
     }
   }
 
@@ -274,11 +284,10 @@ CMD ["npm", "start"]`;
         stdout: true,
         stderr: true,
         timestamps: true,
-        tail: 100, // Last 100 lines
+        tail: 200,
       });
       return logs.toString();
     } catch (error) {
-      console.error('Failed to get container logs:', error);
       return '';
     }
   }
@@ -291,22 +300,33 @@ CMD ["npm", "start"]`;
         running: info.State.Running,
         status: info.State.Status,
         startedAt: info.State.StartedAt,
+        health: info.State.Health?.Status || 'unknown',
       };
-    } catch (error) {
-      console.error('Failed to get container status:', error);
-      return { running: false, status: 'unknown' };
+    } catch {
+      return { running: false, status: 'unknown', health: 'unknown' };
     }
   }
 
-  emitBuildLog(level, message) {
-    // This will be called from deploymentService
-    if (global.deploymentService && this.currentProjectId) {
-      global.deploymentService.emitLog(this.currentProjectId, level, message);
+  emitBuildLog(projectId, level, message) {
+    // deploymentService sets global.deploymentService = this
+    if (global.deploymentService) {
+      // use projectId when provided; otherwise emit generic (won’t crash)
+      try {
+        if (projectId) {
+          global.deploymentService.emitLog(projectId, level, message);
+        } else {
+          // No project id available; you could log to stdout as fallback
+          // eslint-disable-next-line no-console
+          console.log(`[${level}] ${message}`);
+        }
+      } catch {
+        // ignore
+      }
     }
   }
 
-  setCurrentProjectId(projectId) {
-    this.currentProjectId = projectId;
+  sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 }
 

@@ -13,7 +13,7 @@ class ProjectService {
     const response = await fetch(`${API_BASE}/projects`, {
       headers: this.getAuthHeaders(),
     });
-
+   
     if (!response.ok) {
       throw new Error('Failed to fetch projects');
     }
